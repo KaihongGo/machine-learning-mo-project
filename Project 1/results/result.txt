@@ -1,0 +1,26 @@
+加载完成...
+step:1/20 || Total Loss: 0.4967 || Test accuracy:  0.8444
+step:2/20 || Total Loss: 0.2495 || Test accuracy:  0.9345
+step:3/20 || Total Loss: 0.1825 || Test accuracy:  0.9521
+step:4/20 || Total Loss: 0.1469 || Test accuracy:  0.9521
+step:5/20 || Total Loss: 0.1494 || Test accuracy:  0.9493
+step:6/20 || Total Loss: 0.1131 || Test accuracy:  0.9570
+step:7/20 || Total Loss: 0.1311 || Test accuracy:  0.9521
+step:8/20 || Total Loss: 0.1237 || Test accuracy:  0.9577
+step:9/20 || Total Loss: 0.1236 || Test accuracy:  0.9528
+step:10/20 || Total Loss: 0.1068 || Test accuracy:  0.9549
+step:11/20 || Total Loss: 0.0950 || Test accuracy:  0.9556
+step:12/20 || Total Loss: 0.0799 || Test accuracy:  0.9634
+step:13/20 || Total Loss: 0.0937 || Test accuracy:  0.9655
+step:14/20 || Total Loss: 0.0976 || Test accuracy:  0.9599
+step:15/20 || Total Loss: 0.0878 || Test accuracy:  0.9577
+step:16/20 || Total Loss: 0.0832 || Test accuracy:  0.9606
+step:17/20 || Total Loss: 0.0822 || Test accuracy:  0.9577
+step:18/20 || Total Loss: 0.0852 || Test accuracy:  0.9507
+step:19/20 || Total Loss: 0.0797 || Test accuracy:  0.9563
+step:20/20 || Total Loss: 0.0653 || Test accuracy:  0.9599
+Finish Training.
+训练耗时：260seconds
+Best loss: 0.0168
+Best test accuracy: 1.0000
+Accuracy of the network on the test images: 91.55 %

@@ -8,10 +8,10 @@ from torchvision.transforms import transforms
 
 try:
     from MTCNN.detector import FaceDetector
-    from MobileNetV1 import MobileNetV1
+    from MobileNetV2 import MobileNetV2
 except:
     from .MTCNN.detector import FaceDetector
-    from .MobileNetV1 import MobileNetV1
+    from .MobileNetV2 import MobileNetV2
 
 
 def plot_image(image, image_title="", is_axis=False):
@@ -46,7 +46,7 @@ class Recognition(object):
         """
         self.detector = FaceDetector()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.mobilenet = MobileNetV1(classes=2)
+        self.mobilenet = MobileNetV2(classes=2)
         if model_path:
             self.mobilenet.load_state_dict(
                 torch.load(model_path, map_location=device))
@@ -88,10 +88,10 @@ bbox：[左上角x坐标, 左上角y坐标, 右下角x坐标, 右下角y坐标, 
 landmark：[右眼x, 左眼x, 鼻子x, 右嘴角x, 左嘴角x, 右眼y, 左眼y, 鼻子y, 右嘴角y, 左嘴角y]
 """
 if __name__ == "__main__":
-    torch.set_num_threads(1)
-    detector = FaceDetector()
-    img = Image.open("./test1.jpg")
-    recognize = Recognition()
+
+    img = Image.open("./test.jpg")
+    module_path = "./results/temp.pth"
+    recognize = Recognition(model_path=module_path)
 
     """---detect face--"""
     # draw = recognize.face_recognize(img)

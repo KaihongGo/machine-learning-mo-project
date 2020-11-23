@@ -1,4 +1,5 @@
 # %%
+from torch import nn
 import copy
 import datetime
 
@@ -18,7 +19,7 @@ from tqdm.auto import tqdm  # 进度条
 from torch_py.FaceRec import Recognition
 from torch_py.MTCNN.detector import FaceDetector
 from torch_py.Utils import plot_image
-
+from torch_py.MobileNetV2 import MobileNetV2
 # import warnings
 # # 忽视警告
 # warnings.filterwarnings('ignore')
@@ -70,70 +71,13 @@ train_data_loader, valid_data_loader = processing_data(
 
 # %%
 # 2.如果有预训练模型，则加载预训练模型；如果没有则不需要加载
-
+pnet_path = "./torch_py/MTCNN/weights/pnet.npy"
+rnet_path = "./torch_py/MTCNN/weights/rnet.npy"
+onet_path = "./torch_py/MTCNN/weights/onet.npy"
 
 # %%
 # 3.创建模型和训练模型，训练模型时尽量将模型保存在 results 文件夹
 
-
-class MobileNetV1(nn.Module):
-    def __init__(self, classes=2):
-        # classes: 分类数
-        super(MobileNetV1, self).__init__()
-        self.mobilebone = nn.Sequential(
-            self._conv_bn(3, 32, 2),
-            self._conv_dw(32, 64, 1),
-            # self._conv_dw(64, 128, 2),
-            # self._conv_dw(128, 128, 1),
-            # self._conv_dw(128, 256, 2),
-            # self._conv_dw(256, 256, 1),
-            # self._conv_dw(256, 512, 2),
-            # self._top_conv(512, 512, 5),
-            # self._conv_dw(512, 1024, 2),
-            # self._conv_dw(1024, 1024, 1),
-        )
-        # self.avgpool = nn.AvgPool2d(kernel_size=7, stride=1)
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Linear(64, classes)
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, (2. / n) ** .5)
-            if isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-    def forward(self, x):
-        x = self.mobilebone(x)
-        x = self.avg_pool(x)
-        x = x.view(x.size(0), -1)
-        out = self.fc(x)
-
-        return out
-
-    def _top_conv(self, in_channel, out_channel, blocks):
-        layers = []
-        for i in range(blocks):
-            layers.append(self._conv_dw(in_channel, out_channel, 1))
-        return nn.Sequential(*layers)
-
-    def _conv_bn(self, in_channel, out_channel, stride):
-        return nn.Sequential(
-            nn.Conv2d(in_channel, out_channel, 3,
-                      stride, padding=1, bias=False),
-            nn.BatchNorm2d(out_channel),
-            nn.ReLU(inplace=True),
-        )
-
-    def _conv_dw(self, in_channel, out_channel, stride):
-        return nn.Sequential(
-            # nn.Conv2d(in_channel, in_channel, 3, stride, 1, groups=in_channel, bias=False),
-            # nn.BatchNorm2d(in_channel),
-            # nn.ReLU(inplace=True),
-            nn.Conv2d(in_channel, out_channel, 1, 1, 0, bias=False),
-            nn.BatchNorm2d(out_channel),
-            nn.ReLU(inplace=False),
-        )
 
 # %%
 
@@ -141,7 +85,19 @@ class MobileNetV1(nn.Module):
 device = torch.device(
     "cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
-model = MobileNetV1(classes=2).to(device)
+model = MobileNetV2(classes=2)
+# load pretrain weights
+model_weight_path = "mobilenet_v2.pth"
+pre_weights = torch.load(model_weight_path)
+# delete classifier weights
+pre_dict = {k: v for k, v in pre_weights.items() if "classifier" not in k}
+missing_keys, unexpected_keys = model.load_state_dict(pre_dict, strict=False)
+# freeze features weights
+for param in model.features.parameters():
+    param.requires_grad = False
+
+model.to(device)
+
 
 # 优化器
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -162,14 +118,12 @@ epochs = 20
 best_loss = 1e9
 best_model_weights = copy.deepcopy(model.state_dict())
 train_loss_list = []  # 存储损失函数值
-train_accuracy_list = []
 test_accuracy_list = []
 
 start_time = datetime.datetime.now()
 for epoch in range(epochs):
     model.train()
     epoch_loss = []
-    epoch_train_accuracy = []
     epoch_test_accuracy = []
 
     for batch_idx, data in enumerate(train_data_loader, 1):
@@ -184,6 +138,7 @@ for epoch in range(epochs):
         loss = criterion(output_y, y)
         loss.backward()
         optimizer.step()
+
         if loss < best_loss:
             best_model_weights = copy.deepcopy(model.state_dict())
             best_loss = loss
@@ -192,11 +147,6 @@ for epoch in range(epochs):
             # 记录损失
             train_loss_list.append(loss.item())
             epoch_loss.append(loss.item())
-            # train accuracy
-            predict_y = torch.max(output_y, dim=1)[1]
-            accuracy = (predict_y == y).sum().item() / y.size(0)
-            train_accuracy_list.append(accuracy)
-            epoch_train_accuracy.append(accuracy)
             # test accuracy
             total = 0
             correct = 0
@@ -212,20 +162,20 @@ for epoch in range(epochs):
             test_accuracy_list.append(test_accuracy)
             epoch_test_accuracy.append(test_accuracy)
 
-    epoch_loss = np.mean(epoch_loss)
-    epoch_train_accuracy = np.mean(epoch_train_accuracy)
+    epoch_loss = np.mean(epoch_loss)  # 平均
     epoch_test_accuracy = np.mean(epoch_test_accuracy)
     print('step:' + str(epoch + 1) + '/' +
           str(epochs) + ' || Total Loss: %.4f' % (epoch_loss) +
-          ' || Train accuracy: % .4f' % (epoch_train_accuracy) +
-          ' || Train accuracy: % .4f' % (epoch_test_accuracy))
+          ' || Test accuracy: % .4f' % (epoch_test_accuracy))
 
 SAVE_PATH = 'results/temp.pth'
 torch.save(model.state_dict(), SAVE_PATH)
 print('Finish Training.')
 
 end_time = datetime.datetime.now()
-print((end_time - start_time).seconds, "seconds")
+print(f"训练耗时：{(end_time - start_time).seconds}" + "seconds")
+print("Best loss: %.4f" % np.min(train_loss_list))
+print("Best test accuracy: %.4f" % np.max(test_accuracy_list))
 
 # %% 画图
 # train loss
@@ -236,7 +186,6 @@ plt.xlabel('Batches')
 plt.ylabel('Loss')
 plt.show()
 
-plt.plot(train_accuracy_list, 'y',  label="train accuracy")
 plt.plot(test_accuracy_list, 'g', label="test accuracy")
 plt.legend()
 plt.title('Train and Test Accuracy')
@@ -248,7 +197,7 @@ plt.show()
 # 4.评估模型，将自己认为最佳模型保存在 result 文件夹，其余模型备份在项目中其它文件夹，方便您加快测试通过。
 
 model_path = 'results/temp.pth'
-model = MobileNetV1().to(device)
+model = MobileNetV2(classes=2).to(device)
 model.load_state_dict(torch.load(model_path))
 correct = 0
 total = 0
@@ -263,44 +212,3 @@ with torch.no_grad():
         correct += (predicted == labels).sum().item()
 print('Accuracy of the network on the test images: %.2f %%' % (
     100 * correct / total))
-# %%
-
-# ---------------------------------------------------------------------------
-
-
-def predict(img):
-    """
-    加载模型和模型预测
-    :param img: cv2.imread 图像
-    :return: 预测的图片中的总人数、其中佩戴口罩的人数
-    """
-    # -------------------------- 实现模型预测部分的代码 ---------------------------
-    # 将 cv2.imread 图像转化为 PIL.Image 图像，用来兼容测试输入的 cv2 读取的图像（勿删！！！）
-    # cv2.imread 读取图像的类型是 numpy.ndarray
-    # PIL.Image.open 读取图像的类型是 PIL.JpegImagePlugin.JpegImageFile
-    if isinstance(img, np.ndarray):
-        # 转化为 PIL.JpegImagePlugin.JpegImageFile 类型
-        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-
-    recognize = Recognition(model_path)
-    img, all_num, mask_num = recognize.mask_recognize(img)
-    # -------------------------------------------------------------------------
-    return all_num, mask_num
-
-
-# 输入图片路径和名称
-img = cv2.imread("test1.jpg")
-img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-all_num, mask_num = predict(img)
-# 打印预测该张图片中总人数以及戴口罩的人数
-print(all_num, mask_num)
-
-# %%
-
-img = Image.open("test1.jpg")
-detector = FaceDetector()
-recognize = Recognition(model_path='results/temp.pth')
-draw, all_num, mask_nums = recognize.mask_recognize(img)
-plt.imshow(draw)
-plt.show()
-print("all_num:", all_num, "mask_num", mask_nums)
