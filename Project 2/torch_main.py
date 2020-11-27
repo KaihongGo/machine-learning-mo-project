@@ -3,6 +3,7 @@
 import copy
 import os
 import random
+from sys import path
 
 import jieba as jb
 import jieba.analyse
@@ -13,54 +14,8 @@ import torch.nn as nn
 import torch.nn.functional as f
 from torch.nn import init
 from torchtext import data, datasets
+from torchtext import vocab
 from torchtext.data import BucketIterator, Dataset, Example, Field, Iterator
-
-# %%
-# 读取数据集，保存在字典中
-dataset = {}
-path = "dataset/"
-files = os.listdir(path)
-for file in files:
-    if not os.path.isdir(file) and not file[0] == '.':  # 跳过隐藏文件和文件夹
-        f = open(path+"/"+file, 'r',  encoding='UTF-8')  # 打开文件
-        for line in f.readlines():
-            dataset[line] = file[:-4]
-
-# %%
-# 展示数据
-name_zh = {'LX': '鲁迅', 'MY': '莫言', 'QZS': '钱钟书', 'WXB': '王小波', 'ZAL': '张爱玲'}
-for (k, v) in list(dataset.items())[:6]:
-    print(k, '---', name_zh[v])
-
-# %%
-# jieba演示
-# 精确模式分词
-titles = [".".join(jb.cut(t, cut_all=False)) for t, _ in dataset.items()]
-print("精确模式分词结果:\n", titles[0])
-# 全模式分词
-titles = [".".join(jb.cut(t, cut_all=True)) for t, _ in dataset.items()]
-print("全模式分词结果:\n", titles[0])
-# 搜索引擎模式分词
-titles = [".".join(jb.cut_for_search(t)) for t, _ in dataset.items()]
-print("搜索引擎模式分词结果:\n", titles[0])
-
-
-# %%
-# 将片段进行词频统计
-str_full = {}
-str_full['LX'] = ""
-str_full['MY'] = ""
-str_full['QZS'] = ""
-str_full['WXB'] = ""
-str_full['ZAL'] = ""
-
-for (k, v) in dataset.items():
-    str_full[v] += k
-
-for (k, v) in str_full.items():
-    print(k, ":")
-    for x, w in jb.analyse.extract_tags(v, topK=5, withWeight=True):
-        print('%s %s' % (x, w))
 
 # %%
 
@@ -81,9 +36,9 @@ def load_data(path):
     for file in files:
         if not os.path.isdir(file):
             f = open(path + "/" + file, 'r', encoding='UTF-8')  # 打开文件
-            for index, line in enumerate(f.readlines()):
+            for line in f:
                 sentences.append(line)
-                target.append(labels[file[:-4]])
+                target.append(labels[file[:-4]])    # LX.txt --> LX
 
     return list(zip(sentences, target))
 
@@ -96,7 +51,8 @@ LABEL = Field(sequential=False, use_vocab=False)
 FIELDS = [('text', TEXT), ('category', LABEL)]
 
 # 读取数据，是由tuple组成的列表形式
-mydata = load_data(path)
+data_path = "dataset"
+mydata = load_data(data_path)
 
 # 使用Example构建Dataset
 examples = list(map(lambda x: Example.fromlist(
@@ -105,8 +61,15 @@ dataset = Dataset(examples, fields=FIELDS)
 # 构建中文词汇表
 TEXT.build_vocab(dataset)
 # %%
+examples[0].__dict__
+
+# %%
+TEXT.vocab # TEXT.__dict__['vocab']
+TEXT.vocab.__dict__.keys()
+# %%
 # 切分数据集
 train, val = dataset.split(split_ratio=0.7)
+
 device = torch.device(
     "cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 # 生成可迭代的mini-batch
@@ -119,6 +82,22 @@ train_iter, val_iter = BucketIterator.splits(
     repeat=False
 )
 # %%
+train_iter.__dict__ # dataset --> train
+len(train) # 5907
+
+# %%
+train[0].__dict__
+examples[0].text
+# for idx, batch in enumerate(train_iter):
+#     print(idx, batch)
+print()
+text = next(train_iter.__iter__()).text
+category = next(train_iter.__iter__()).category
+print(text)
+print(text.size())
+print(category)
+
+# %%
 # Pytorch定义模型的方式之一：
 # 继承 Module 类并实现其中的forward方法
 
@@ -126,7 +105,7 @@ train_iter, val_iter = BucketIterator.splits(
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.lstm = torch.nn.LSTM(1, 64)
+        self.lstm = nn.LSTM(1, 64)
         self.fc1 = nn.Linear(64, 128)
         self.fc2 = nn.Linear(128, 5)
 
@@ -137,6 +116,7 @@ class Net(nn.Module):
         :return: 模型输出
         """
         output, hidden = self.lstm(x.unsqueeze(2).float())
+        # torch.unsqueeze
         h_n = hidden[1]
         out = self.fc2(self.fc1(h_n.view(h_n.shape[1], -1)))
         return out
@@ -164,6 +144,8 @@ for epoch in range(3):
     val_acc, val_loss = 0, 0
     for idx, batch in enumerate(train_iter):
         text, label = batch.text, batch.category
+        # print(text)
+        print(label)
         optimizer.zero_grad()
         out = model(text)
         loss = loss_fn(out, label.long())
