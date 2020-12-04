@@ -61,13 +61,12 @@ class Embedder(nn.Module):
 
         # pickle.dump([vocab], open('vocab', 'wb'))
         if pretrain:
-            [vocab] = pickle.load(open('vocab', 'rb'))  # 预训练词向量文件
+            vocab = pickle.load(open('vocab', 'rb'))  # 预训练词向量文件
             weight = torch.zeros(len(TEXT.vocab), 300)
             for i in range(len(TEXT.vocab)):
-                weight[i] = torch.Tensor(
-                    vocab.get(TEXT.vocab.itos[i], weight[i]))
-            self.embed = nn.Embedding.from_pretrained(weight, freeze=False).to(
-                device)  # nn.Embedding.from_pretrained默认freeze为True，即不可训练的
+                weight[i] = torch.Tensor(vocab.get(TEXT.vocab.itos[i], weight[i]))
+            
+            self.embed = nn.Embedding.from_pretrained(weight, freeze=False).to(device)  # nn.Embedding.from_pretrained默认freeze为True，即不可训练的
         else:
             # nn.Embedding()本来就是可训练的
             self.embed = nn.Embedding(len(TEXT.vocab), embed_size)
@@ -83,20 +82,31 @@ class Net(nn.Module):
         self.hidden_size = hidden_size
         self.mode = mode
         self.attention = attention
-        model = nn.LSTM if mode == 'LSTM' else nn.GRU
-        self.lstm = model(self.embedding.embed.embedding_dim, self.hidden_size,
-                          bidirectional=bidirectional, num_layers=num_layers)
         self.bidirectional = bidirectional
+        self.lstm = nn.LSTM(self.embedding.embed.embedding_dim, self.hidden_size,
+                          bidirectional=bidirectional, num_layers=num_layers)
         num_feat = self.hidden_size
         self.att_size = self.hidden_size
+        
         if bidirectional:
             num_feat *= 2
             self.att_size = 2*self.att_size
+        
         # attention中的query向量，可学习
         self.query = Variable(torch.zeros(self.att_size)
                               ).view(-1, 1).to(device)
+        
         self.fc1 = nn.Linear(num_feat, 64)
         self.fc2 = nn.Linear(64, 5)
+    # model:
+    #     Net(
+    #     (embedding): Embedder(
+    #         (embed): Embedding(56261, 50)
+    #     )
+    #     (lstm): LSTM(50, 64, bidirectional=True)
+    #     (fc1): Linear(in_features=128, out_features=64, bias=True)
+    #     (fc2): Linear(in_features=64, out_features=5, bias=True)
+    #     )
 
     def forward(self, x):
         """
