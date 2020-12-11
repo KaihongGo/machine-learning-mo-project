@@ -1,8 +1,10 @@
+import copy
 import random
 from collections import namedtuple
+
 import numpy as np
-import copy
 from torch.utils.data import DataLoader
+
 from Maze import Maze
 
 
@@ -16,7 +18,8 @@ class ReplayDataSet(object):
 
     def add(self, state, action_index, reward, next_state, is_terminal):
         if len(self.Experience) == self.max_size:
-            self.Experience.popitem()  # 超越内存最大长度时需要清理空间，具体的删除方式还需改动
+            # self.Experience.popitem()  # 超越内存最大长度时需要清理空间，具体的删除方式还需改动
+            self.Experience.pop(random.choice(self.Experience.keys()))
 
         key = (state, action_index)
         if self.Experience.__contains__(key):
@@ -85,8 +88,13 @@ if __name__ == "__main__":
     maze1 = Maze(5)
     memory.build_full_view(maze1)
     print(len(memory))
-    # memory_loader = DataLoader(memory, batch_size=5)
-    # for idx, content in enumerate(memory_loader):
-    #     print(idx)
-    #     print(content)
-    #     break
+    memory_loader = DataLoader(memory, batch_size=5)
+    for idx, content in enumerate(memory_loader):
+        print(idx)
+        print(content)
+        break
+    
+    # test_memory = ReplayDataSet(max_size=1e3) # 初始化并设定最大容量
+    # actions = ['u', 'r', 'd', 'l']  
+    # test_memory.add((0,1), actions.index("r"), -10, (0,1), 1)  # 添加一条数据（state, action_index, reward, next_state）
+    # print(test_memory.random_sample(1)) # 从中随机抽取一条（因为只有一条数据）

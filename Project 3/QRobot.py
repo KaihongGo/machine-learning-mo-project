@@ -1,10 +1,11 @@
 import random
+from Maze import Maze
 
 
 class QRobot(object):
     valid_action = ['u', 'r', 'd', 'l']
 
-    def __init__(self, maze, alpha=0.5, gamma=0.9, epsilon0=0.5):
+    def __init__(self, maze: Maze, alpha=0.5, gamma=0.9, epsilon0=0.5):
 
         self.maze = maze
 
@@ -79,7 +80,8 @@ class QRobot(object):
 
         current_r = self.q_table[self.state][action]
 
-        update_r = r + self.gamma * float(max(self.q_table[next_state].values()))
+        update_r = r + self.gamma * \
+            float(max(self.q_table[next_state].values()))
 
         self.q_table[self.state][action] += self.alpha * (update_r - current_r)
 
@@ -100,7 +102,8 @@ class QRobot(object):
 
         next_state = self.sense_state()  # 获取机器人执行动作后所处的位置
 
-        self.create_Qtable_line(next_state)  # 对当前 next_state ，检索Q表，如果不存在则添加进入Q表
+        # 对当前 next_state ，检索Q表，如果不存在则添加进入Q表
+        self.create_Qtable_line(next_state)
 
         self.update_Qtable(reward, action, next_state)  # 更新 Q 表 中 Q 值
         self.update_parameter()  # 更新其它参数
@@ -126,4 +129,10 @@ class QRobot(object):
 
 
 if __name__ == "__main__":
-    pass
+    maze = Maze(maze_size=5)
+    
+    robot = QRobot(maze)
+    action, reward = robot.train_update()
+
+    print("the choosed action: ", action)
+    print("the returned reward: ", reward)

@@ -1,13 +1,13 @@
-import numpy as np
 import random
 
+import numpy as np
 import torch
 import torch.nn.functional as F
+from Maze import Maze
+from QRobot import QRobot
+from ReplayDataSet import ReplayDataSet
 from torch import optim
 
-from QRobot import QRobot
-from Maze import Maze
-from ReplayDataSet import ReplayDataSet
 from torch_py.QNetwork import QNetwork
 
 
@@ -23,15 +23,15 @@ class MinDQNRobot(QRobot):
     """some parameters of neural network"""
     target_model = None
     eval_model = None
-    batch_size = 32
-    learning_rate = 1e-2
+    batch_size = 64
+    learning_rate = 1e-3
     TAU = 1e-3
     step = 1  # 记录训练的步数
 
     """setting the device to train network"""
     device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
-    def __init__(self, maze):
+    def __init__(self, maze: Maze):
         """
         初始化 Robot 类
         :param maze:迷宫对象
@@ -51,7 +51,7 @@ class MinDQNRobot(QRobot):
         self._build_network()
 
         """create the memory to store data"""
-        max_size = max(self.maze_size ** 2 * 3, 1e4)
+        max_size = max(self.maze_size ** 2 * 3, 1e6)
         self.memory = ReplayDataSet(max_size=max_size)
 
     def _build_network(self):
@@ -93,7 +93,7 @@ class MinDQNRobot(QRobot):
             action = self.valid_action[np.argmin(q_next).item()]
         return action
 
-    def _learn(self, batch: int = 16):
+    def _learn(self, batch: int = batch_size):
         if len(self.memory) < batch:
             print("the memory data is not enough")
             return
@@ -111,6 +111,8 @@ class MinDQNRobot(QRobot):
 
         """Get max predicted Q values (for next states) from target model"""
         Q_targets_next = self.target_model(next_state).detach().min(1)[0].unsqueeze(1)
+        # detach() operates on a tensor and returns the same tensor, 
+        # which will be detached from the computation graph at this point, so that the backward pass will stop at this point.
 
         """Compute Q targets for current states"""
         Q_targets = reward + self.gamma * Q_targets_next * (torch.ones_like(is_terminal) - is_terminal)
@@ -142,7 +144,7 @@ class MinDQNRobot(QRobot):
 
         """--间隔一段时间更新target network权重--"""
         if self.step % self.EveryUpdate == 0:
-            self._learn(batch=32)
+            self._learn(batch=self.batch_size)
 
         """---update the step and epsilon---"""
         self.step += 1

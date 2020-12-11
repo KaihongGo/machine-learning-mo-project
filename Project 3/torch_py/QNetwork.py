@@ -20,17 +20,20 @@ class QNetwork(nn.Module, ABC):
         self.seed = torch.manual_seed(seed)
         self.input_hidden = nn.Sequential(
             nn.Linear(state_size, 512),
+            nn.PReLU(),
+            nn.PReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(False),
-            nn.Linear(512, 512),
+            nn.Linear(256, 128),
             nn.ReLU(False),
         )
-
-        self.final_fc = nn.Linear(512, action_size)
+        self.final_fc = nn.Linear(128, action_size)
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
         x = self.input_hidden(state)
-        return self.final_fc(x)
+        x = self.final_fc(x)
+        return x
 
 
 if __name__ == "__main__":

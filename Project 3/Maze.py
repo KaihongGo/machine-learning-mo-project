@@ -107,7 +107,7 @@ class Maze(object):
         ellipse = plt.Circle((y, x), 0.4, color='red')
         plt.gca().add_patch(ellipse)
 
-    def generate_maze(self, maze_size):
+    def generate_maze(self, maze_size) -> np:
         """
             prim随机迷宫算法
             :param maze_size: 迷宫的宽度，生成迷宫尺寸为 maze_size * maze_size
@@ -217,9 +217,10 @@ class Maze(object):
 if __name__ == "__main__":
     import copy
     maze = Maze(maze_size=3)
-    maze_copy = Maze(maze_size=3)
     print(maze.sense_robot())
-    print(maze_copy.sense_robot())
     maze.move_robot("r")
     print(maze.sense_robot())
-    print(maze_copy.sense_robot())
+    maze.reset_robot()
+    print(maze.sense_robot())
+    print(maze.maze_data)
+    
